@@ -7,13 +7,21 @@ import { ProtectedRoute, AdminRoute } from './routes'
 import Sidebar from './components/Sidebar'
 import Navbar from './components/Navbar'
 
-// Views
-import Login from './views/Login'
-import POSCheckout from './views/kasir/POSCheckout'
-import WarrantyTracker from './views/kasir/WarrantyTracker'
-import Dashboard from './views/admin/Dashboard'
-import InventoryMaster from './views/admin/InventoryMaster'
-import StockLogs from './views/admin/StockLogs'
+import { Suspense, lazy } from 'react'
+
+// Views (Lazy Loaded)
+const Login = lazy(() => import('./views/Login'))
+const POSCheckout = lazy(() => import('./views/kasir/POSCheckout'))
+const WarrantyTracker = lazy(() => import('./views/kasir/WarrantyTracker'))
+const Dashboard = lazy(() => import('./views/admin/Dashboard'))
+const InventoryMaster = lazy(() => import('./views/admin/InventoryMaster'))
+const StockLogs = lazy(() => import('./views/admin/StockLogs'))
+const CategoryMaster = lazy(() => import('./views/admin/CategoryMaster'))
+
+// Fallback Loader
+const PageLoader = () => (
+  <div className="flex h-[80vh] items-center justify-center text-sm text-muted-foreground">Memuat halaman...</div>
+)
 
 // Authenticated Layout Shell: Sidebar + Navbar + Content
 function LayoutShell({ children }) {
@@ -25,7 +33,9 @@ function LayoutShell({ children }) {
       <div className="flex flex-1 flex-col overflow-hidden">
         <Navbar onMenuToggle={() => setSidebarOpen(true)} />
         <main className="flex-1 overflow-y-auto p-4 lg:p-6">
-          {children}
+          <Suspense fallback={<PageLoader />}>
+            {children}
+          </Suspense>
         </main>
       </div>
     </div>
@@ -58,7 +68,7 @@ export default function App() {
           user ? (
             isAdmin ? <Navigate to="/admin/dashboard" replace /> : <Navigate to="/kasir/pos" replace />
           ) : (
-            <Login />
+            <Suspense fallback={<PageLoader />}><Login /></Suspense>
           )
         }
       />
@@ -70,6 +80,7 @@ export default function App() {
       {/* Admin Routes */}
       <Route path="/admin/dashboard" element={<AdminRoute><LayoutShell><Dashboard /></LayoutShell></AdminRoute>} />
       <Route path="/admin/inventori" element={<AdminRoute><LayoutShell><InventoryMaster /></LayoutShell></AdminRoute>} />
+      <Route path="/admin/kategori" element={<AdminRoute><LayoutShell><CategoryMaster /></LayoutShell></AdminRoute>} />
       <Route path="/admin/logs" element={<AdminRoute><LayoutShell><StockLogs /></LayoutShell></AdminRoute>} />
 
       {/* Fallback */}

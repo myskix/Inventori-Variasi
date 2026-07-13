@@ -1,45 +1,75 @@
-import axios from 'axios'
+import axios from 'axios';
 
-// Axios instance for future backend API integration
-// When the Express backend (pos-variasi-be) is ready,
-// update the baseURL to point to the server.
-const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:3000/api',
-  timeout: 10000,
+// Configure the base URL to point to our new Express backend
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api/v1';
+
+const apiClient = axios.create({
+  baseURL: API_URL,
   headers: {
     'Content-Type': 'application/json'
   }
-})
+});
 
-// Request interceptor: attach auth token if available
-api.interceptors.request.use(
+// Request Interceptor: Attach token if available
+apiClient.interceptors.request.use(
   (config) => {
-    const storedUser = localStorage.getItem('pos_user')
-    if (storedUser) {
-      try {
-        const user = JSON.parse(storedUser)
-        if (user.token) {
-          config.headers.Authorization = `Bearer ${user.token}`
-        }
-      } catch (e) {
-        // Ignore parse errors
-      }
+    const token = localStorage.getItem('token');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
     }
-    return config
+    return config;
   },
   (error) => Promise.reject(error)
-)
+);
 
-// Response interceptor: handle 401 globally
-api.interceptors.response.use(
-  (response) => response,
+// Response Interceptor: Handle global errors (like 401 Unauthorized)
+apiClient.interceptors.response.use(
+  (response) => response.data, // Simplify response to just data
   (error) => {
-    if (error.response?.status === 401) {
-      localStorage.removeItem('pos_user')
-      window.location.href = '/login'
+    if (error.response && error.response.status === 401) {
+      // Token expired or invalid
+      localStorage.removeItem('token');
+      window.location.href = '/login';
     }
-    return Promise.reject(error)
+    // Return standard error message or generic one
+    const message = error.response?.data?.message || 'Terjadi kesalahan pada jaringan/server.';
+    return Promise.reject(new Error(message));
   }
-)
+);
 
-export default api
+export const api = {
+  // --- AUTH ---
+  login: (username, password) => apiClient.post('/auth/login', { username, password }),
+  getProfile: () => apiClient.get('/auth/profile'),
+
+  // --- DASHBOARD ---
+  getDashboardMetrics: () => apiClient.get('/dashboard'),
+
+  // --- CATEGORIES ---
+  getCategories: () => apiClient.get('/categories'),
+  getActiveCategories: () => apiClient.get('/categories').then(res => res.filter(c => c.is_active)),
+  createCategory: (data) => apiClient.post('/categories', data),
+  updateCategory: (id, data) => apiClient.put(`/categories/${id}`, data),
+  deleteCategory: (id) => apiClient.delete(`/categories/${id}`),
+
+  // --- PRODUCTS ---
+  getProducts: () => apiClient.get('/products'),
+  getActiveProducts: () => apiClient.get('/products').then(res => res.filter(p => p.is_active && p.stok_saat_ini > 0)),
+  createProduct: (data) => apiClient.post('/products', data),
+  updateProduct: (id, data) => apiClient.put(`/products/${id}`, data),
+  deleteProduct: (id) => apiClient.delete(`/products/${id}`),
+  restoreProduct: (id) => apiClient.post(`/products/${id}/restore`),
+  updateProductStock: (id, change_qty, log_type, remarks) => apiClient.post(`/products/${id}/stock`, { change_qty, log_type, remarks }),
+
+  // --- TRANSACTIONS & POS ---
+  getTransactions: () => apiClient.get('/transactions'),
+  createTransaction: (data) => apiClient.post('/transactions', data),
+  cancelTransaction: (id) => apiClient.post(`/transactions/${id}/cancel`),
+
+  // --- WARRANTY ---
+  checkWarranty: (params) => apiClient.get('/warranties/check', { params }), // params: { plat, phone, invoice, name }
+  claimWarranty: (id) => apiClient.post(`/warranties/${id}/claim`),
+
+  // --- STOCK LOGS ---
+  getStockLogs: () => apiClient.get('/logs/stock')
+};

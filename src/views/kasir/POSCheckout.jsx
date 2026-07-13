@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { useAuth } from '../../context/AuthContext'
-import { mockApi } from '../../services/mockApi'
+import { api } from '../../services/api'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -42,11 +42,15 @@ function ThermalReceiptModal({ isOpen, onClose, transactionData }) {
             <div className="flex justify-between"><span>Kasir:</span><span className="capitalize">{transaction.cashier_id === 'usr-001' ? 'Pak Adi' : 'Rian'}</span></div>
             <Separator className="my-2 border-dashed" />
             <div className="flex justify-between font-bold text-slate-900"><span>Pelanggan:</span><span className="max-w-[150px] truncate">{transaction.customer_details.name}</span></div>
-            {transaction.customer_details.phone !== '-' && (
-              <div className="flex justify-between"><span>WhatsApp:</span><span>{transaction.customer_details.phone}</span></div>
+            <div className="flex justify-between"><span>WhatsApp:</span><span>{transaction.customer_details.phone}</span></div>
+            <div className="flex justify-between"><span>No Plat:</span><span className="font-bold uppercase">{transaction.customer_details.plat_nomor}</span></div>
+            {transaction.customer_details.vehicle !== '-' && (
+              <div className="flex justify-between"><span>Kendaraan:</span><span className="max-w-[150px] truncate">{transaction.customer_details.vehicle}</span></div>
             )}
-            {transaction.customer_details.plat_nomor !== '-' && (
-              <div className="flex justify-between"><span>No Plat:</span><span className="font-bold uppercase">{transaction.customer_details.plat_nomor}</span></div>
+            {transaction.customer_details.notes !== '-' && (
+              <div className="flex flex-col mt-1">
+                <span>Catatan:</span><span className="max-w-full text-left italic">{transaction.customer_details.notes}</span>
+              </div>
             )}
           </div>
 
@@ -114,14 +118,15 @@ export default function POSCheckout() {
   const { user } = useAuth()
 
   const [products, setProducts] = useState([])
-  const [services, setServices] = useState([])
   const [productSearch, setProductSearch] = useState('')
   const [showProductDropdown, setShowProductDropdown] = useState(false)
-  const [selectedServiceId, setSelectedServiceId] = useState('')
-  const [serviceDifficulty, setServiceDifficulty] = useState('Simple')
+  const [serviceName, setServiceName] = useState('')
+  const [servicePrice, setServicePrice] = useState('')
   const [customerName, setCustomerName] = useState('')
   const [customerPhone, setCustomerPhone] = useState('')
   const [customerPlate, setCustomerPlate] = useState('')
+  const [customerVehicle, setCustomerVehicle] = useState('')
+  const [customerNotes, setCustomerNotes] = useState('')
   const [customWarrantyDays, setCustomWarrantyDays] = useState('')
   const [paymentMethod, setPaymentMethod] = useState('Cash')
   const [cart, setCart] = useState([])
@@ -133,9 +138,8 @@ export default function POSCheckout() {
 
   const loadCatalog = async () => {
     try {
-      const [prodList, srvList] = await Promise.all([mockApi.getProducts(), mockApi.getServices()])
+      const prodList = await api.getActiveProducts()
       setProducts(prodList)
-      setServices(srvList)
     } catch (err) { console.error(err) }
   }
 
@@ -161,18 +165,22 @@ export default function POSCheckout() {
   }
 
   const addToCartService = () => {
-    if (!selectedServiceId) return
-    const service = services.find((s) => s.id === selectedServiceId)
-    if (!service) return
-    let calculatedPrice = service.harga
-    if (serviceDifficulty === 'Complex') calculatedPrice = Math.round(calculatedPrice * 1.5)
+    if (!servicePrice || Number(servicePrice) <= 0) {
+      setError('Harga jasa tidak valid!')
+      setTimeout(() => setError(null), 3000)
+      return
+    }
+    const calculatedPrice = Number(servicePrice)
+    const sName = serviceName || 'Jasa Pasang / Mekanik'
+    
     setCart((prev) => {
-      const existing = prev.find((item) => item.type === 'service' && item.id === service.id && item.difficulty === serviceDifficulty)
-      if (existing) return prev.map((item) => item.type === 'service' && item.id === service.id && item.difficulty === serviceDifficulty ? { ...item, quantity: item.quantity + 1 } : item)
-      return [...prev, { type: 'service', id: service.id, name: service.name, code: service.code, price: calculatedPrice, basePrice: service.harga, quantity: 1, difficulty: serviceDifficulty }]
+      const existing = prev.find((item) => item.type === 'service' && item.name === sName && item.price === calculatedPrice)
+      if (existing) return prev.map((item) => item.type === 'service' && item.name === sName && item.price === calculatedPrice ? { ...item, quantity: item.quantity + 1 } : item)
+      return [...prev, { type: 'service', id: `svc-manual-${Date.now()}`, name: sName, price: calculatedPrice, quantity: 1, difficulty: 'Manual' }]
     })
-    setSelectedServiceId('')
-    setServiceDifficulty('Simple')
+    
+    setServiceName('')
+    setServicePrice('')
   }
 
   const updateCartQty = (index, change) => {
@@ -193,16 +201,26 @@ export default function POSCheckout() {
     e.preventDefault()
     if (!user) { setError('Anda harus login terlebih dahulu!'); return }
     if (cart.length === 0) { setError('Keranjang belanja kosong!'); return }
+    if (!customerName.trim() || !customerPhone.trim() || !customerPlate.trim()) {
+      setError('Nama Pelanggan, No WhatsApp, dan No Plat wajib diisi!'); return 
+    }
+    
     setSubmitting(true)
     setError(null)
-    const customerDetails = { name: customerName.trim() || 'Umum / Cash', phone: customerPhone.trim() || '-', plat_nomor: customerPlate.trim() || '-' }
+    const customerDetails = { 
+      name: customerName.trim(), 
+      phone: customerPhone.trim(), 
+      plat_nomor: customerPlate.trim(),
+      vehicle: customerVehicle.trim() || '-',
+      notes: customerNotes.trim() || '-'
+    }
     const checkoutItems = cart.map((item) => ({ type: item.type, id: item.id, quantity: item.quantity, price: item.type === 'product' ? item.price : item.basePrice, difficulty: item.difficulty || 'Simple' }))
     try {
-      const res = await mockApi.createTransaction({ customer_id: null, customer_details: customerDetails, items: checkoutItems, payment_method: paymentMethod, cashier_id: user.id, warranty_duration_days: customWarrantyDays ? Number(customWarrantyDays) : undefined })
+      const res = await api.createTransaction({ customer_id: null, customer_details: customerDetails, items: checkoutItems, payment_method: paymentMethod, cashier_id: user.id, warranty_duration_days: customWarrantyDays ? Number(customWarrantyDays) : undefined })
       setReceiptData(res)
       setIsReceiptOpen(true)
       setSuccess(`Transaksi berhasil! Invoice: ${res.transaction.invoice_no}`)
-      setCart([]); setCustomerName(''); setCustomerPhone(''); setCustomerPlate(''); setCustomWarrantyDays('')
+      setCart([]); setCustomerName(''); setCustomerPhone(''); setCustomerPlate(''); setCustomerVehicle(''); setCustomerNotes(''); setCustomWarrantyDays('')
       await loadCatalog()
     } catch (err) { setError(err.message) }
     finally { setSubmitting(false) }
@@ -276,25 +294,24 @@ export default function POSCheckout() {
               <Label className="mb-1.5">Jasa Pasang / Service Mekanik</Label>
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-12">
                 <div className="sm:col-span-5">
-                  <select
-                    value={selectedServiceId} onChange={(e) => setSelectedServiceId(e.target.value)}
-                    className="flex h-9 w-full rounded-md border border-input bg-background text-foreground px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                  >
-                    <option value="" className="bg-background text-foreground">-- Pilih Jasa Mekanik --</option>
-                    {services.map((s) => (<option key={s.id} value={s.id}>{s.name} (Rp{s.harga.toLocaleString('id-ID')})</option>))
-                    }
-                  </select>
+                  <Input 
+                    placeholder="Nama Jasa (Opsional)" 
+                    value={serviceName} 
+                    onChange={e => setServiceName(e.target.value)} 
+                  />
                 </div>
-                <div className="flex gap-1 sm:col-span-5">
-                  {['Simple', 'Complex'].map((diff) => (
-                    <Button key={diff} type="button" variant={serviceDifficulty === diff ? 'default' : 'outline'} size="sm" className="flex-1" onClick={() => setServiceDifficulty(diff)}>
-                      {diff === 'Simple' ? <><Wrench className="size-3" /> Simple</> : <><Zap className="size-3" /> Complex +50%</>}
-                    </Button>
-                  ))}
+                <div className="sm:col-span-4">
+                  <Input 
+                    type="number" 
+                    min="0" 
+                    placeholder="Harga Jasa (Rp)" 
+                    value={servicePrice} 
+                    onChange={e => setServicePrice(e.target.value)} 
+                  />
                 </div>
-                <div className="sm:col-span-2">
-                  <Button onClick={addToCartService} disabled={!selectedServiceId} className="w-full" size="sm">
-                    <Plus className="size-4" /> Tambah
+                <div className="sm:col-span-3">
+                  <Button onClick={addToCartService} disabled={!servicePrice} className="w-full">
+                    <Plus className="mr-1 size-4" /> Tambah
                   </Button>
                 </div>
               </div>
@@ -310,34 +327,42 @@ export default function POSCheckout() {
           <CardContent>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="space-y-2">
-                <Label>Nama Pembeli</Label>
+                <Label>Nama Pelanggan <span className="text-destructive">*</span></Label>
                 <div className="relative">
                   <User className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input placeholder="Nama Lengkap Pelanggan" value={customerName} onChange={(e) => setCustomerName(e.target.value)} className="pl-9" />
+                  <Input required placeholder="Nama Lengkap" value={customerName} onChange={(e) => setCustomerName(e.target.value)} className="pl-9" />
                 </div>
               </div>
               <div className="space-y-2">
-                <Label>No WhatsApp</Label>
+                <Label>No WhatsApp <span className="text-destructive">*</span></Label>
                 <div className="relative">
                   <Phone className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input type="tel" placeholder="08xxxxxxxxxx" value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} className="pl-9" />
+                  <Input required type="tel" placeholder="08xxxxxxxxxx" value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} className="pl-9" />
                 </div>
               </div>
               <div className="space-y-2">
-                <Label>No Plat Kendaraan</Label>
+                <Label>No Plat Kendaraan <span className="text-destructive">*</span></Label>
                 <div className="relative">
                   <Car className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input placeholder="BM 1234 PA" value={customerPlate} onChange={(e) => setCustomerPlate(e.target.value)} className="pl-9 uppercase" />
+                  <Input required placeholder="BM 1234 PA" value={customerPlate} onChange={(e) => setCustomerPlate(e.target.value)} className="pl-9 uppercase" />
                 </div>
               </div>
               <div className="space-y-2">
+                <Label>Jenis Kendaraan (Opsional)</Label>
+                <Input placeholder="Cth: NMAX 155 Putih" value={customerVehicle} onChange={(e) => setCustomerVehicle(e.target.value)} />
+              </div>
+              <div className="space-y-2 sm:col-span-2">
+                <Label>Catatan (Opsional)</Label>
+                <Input placeholder="Tuliskan catatan keluhan atau instruksi khusus..." value={customerNotes} onChange={(e) => setCustomerNotes(e.target.value)} />
+              </div>
+              <div className="space-y-2 sm:col-span-2 mt-2 pt-4 border-t">
                 <div className="flex items-center justify-between">
                   <Label>Durasi Garansi Manual</Label>
                   <span className="text-[10px] text-muted-foreground">Override (Hari)</span>
                 </div>
                 <div className="relative">
                   <Shield className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input type="number" min="0" placeholder="Default katalog (kosongkan)" value={customWarrantyDays} onChange={(e) => setCustomWarrantyDays(e.target.value)} className="pl-9" />
+                  <Input type="number" min="0" placeholder="Biarkan kosong jika mengikuti Master Produk" value={customWarrantyDays} onChange={(e) => setCustomWarrantyDays(e.target.value)} className="pl-9" />
                 </div>
               </div>
             </div>

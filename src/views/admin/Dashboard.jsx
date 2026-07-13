@@ -1,33 +1,26 @@
 import React, { useState, useEffect } from 'react'
-import { mockApi } from '../../services/mockApi'
+import { api } from '../../services/api'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Package, Receipt, DollarSign, AlertTriangle, TrendingUp, Clock } from 'lucide-react'
+import { DollarSign, TrendingUp, Target, Package } from 'lucide-react'
 
 export default function Dashboard() {
-  const [metrics, setMetrics] = useState({ totalSku: 0, trxsToday: 0, revenueToday: 0, criticalStockCount: 0 })
-  const [criticalItems, setCriticalItems] = useState([])
-  const [recentTransactions, setRecentTransactions] = useState([])
+  const [metrics, setMetrics] = useState({
+    omsetToday: 0,
+    omsetMonth: 0,
+    omsetYear: 0,
+    totalProfit: 0
+  })
+  
+  const [topProducts, setTopProducts] = useState([])
   const [loading, setLoading] = useState(true)
 
   const loadDashboardData = async () => {
     setLoading(true)
     try {
-      const [products, transactions] = await Promise.all([
-        mockApi.getProducts(),
-        mockApi.getTransactions()
-      ])
-
-      const totalSku = products.length
-      const todayStr = new Date().toISOString().slice(0, 10)
-      const todayTrxs = transactions.filter((t) => t.date.slice(0, 10) === todayStr)
-      const trxsToday = todayTrxs.length
-      const revenueToday = todayTrxs.reduce((sum, t) => sum + t.total_amount, 0)
-      const critItems = products.filter((p) => p.stok_saat_ini <= p.stok_minimum)
-
-      setMetrics({ totalSku, trxsToday, revenueToday, criticalStockCount: critItems.length })
-      setCriticalItems(critItems)
-      setRecentTransactions([...transactions].reverse().slice(0, 5))
+      const data = await api.getDashboardMetrics()
+      setMetrics(data.metrics || { omsetToday: 0, omsetMonth: 0, omsetYear: 0, totalProfit: 0 })
+      setTopProducts(data.topProducts || [])
     } catch (err) {
       console.error('Failed to load dashboard:', err)
     } finally {
@@ -38,97 +31,73 @@ export default function Dashboard() {
   useEffect(() => { loadDashboardData() }, [])
 
   if (loading) {
-    return <div className="flex items-center justify-center py-20 text-sm text-muted-foreground">Memuat dashboard...</div>
+    return <div className="flex h-64 items-center justify-center text-sm text-muted-foreground">Memuat Analytics Dashboard...</div>
   }
-
-  const statCards = [
-    { label: 'Total SKU Terdaftar', value: metrics.totalSku, icon: Package, desc: 'Komponen suku cadang & aksesoris' },
-    { label: 'Transaksi Hari Ini', value: metrics.trxsToday, icon: Receipt, desc: 'Faktur penjualan kasir hari ini' },
-    { label: 'Omset Hari Ini', value: `Rp${metrics.revenueToday.toLocaleString('id-ID')}`, icon: DollarSign, desc: 'Akumulasi penjualan kotor' },
-    { label: 'Stok Kritis', value: metrics.criticalStockCount, icon: AlertTriangle, desc: 'Barang di bawah batas minimum', destructive: metrics.criticalStockCount > 0 }
-  ]
 
   return (
     <div className="space-y-6">
-      {/* Stat Cards */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {statCards.map((card) => (
-          <Card key={card.label} className={card.destructive ? 'border-destructive/50' : ''}>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardDescription className="text-xs font-semibold uppercase tracking-wider">{card.label}</CardDescription>
-              <card.icon className={`size-4 ${card.destructive ? 'text-destructive' : 'text-muted-foreground'}`} />
-            </CardHeader>
-            <CardContent>
-              <div className={`text-2xl font-bold ${card.destructive ? 'text-destructive' : ''}`}>{card.value}</div>
-              <p className="mt-1 text-[11px] text-muted-foreground">{card.desc}</p>
-            </CardContent>
-          </Card>
-        ))}
+      <div>
+        <h2 className="text-2xl font-bold tracking-tight">Dashboard & Analytics</h2>
+        <p className="text-sm text-muted-foreground">Ringkasan performa penjualan dan finansial toko.</p>
       </div>
 
-      {/* Lower Grid */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
-        {/* Critical Stock */}
-        <Card className="lg:col-span-5">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <AlertTriangle className="size-4 text-destructive" /> Peringatan Stok Menipis
-              </CardTitle>
-              <Badge variant="destructive">{criticalItems.length} SKU</Badge>
-            </div>
+      {/* KPI Metrics */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardDescription className="text-xs font-semibold uppercase tracking-wider">Omset Hari Ini</CardDescription>
+            <DollarSign className="size-4 text-primary" />
           </CardHeader>
           <CardContent>
-            {criticalItems.length === 0 ? (
-              <p className="py-8 text-center text-sm italic text-muted-foreground">Semua stok aman!</p>
-            ) : (
-              <div className="space-y-2">
-                {criticalItems.map((p) => (
-                  <div key={p.id} className="flex items-center justify-between rounded-lg border border-border bg-card p-3">
-                    <div>
-                      <p className="text-sm font-semibold">{p.name}</p>
-                      <p className="font-mono text-[10px] text-muted-foreground">{p.code}</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-sm font-bold text-destructive">{p.stok_saat_ini} pcs</p>
-                      <p className="text-[10px] text-muted-foreground">Min: {p.stok_minimum}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+            <div className="text-2xl font-bold">Rp{metrics.omsetToday.toLocaleString('id-ID')}</div>
           </CardContent>
         </Card>
-
-        {/* Recent Transactions */}
-        <Card className="lg:col-span-7">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <TrendingUp className="size-4 text-muted-foreground" /> Penjualan Terbaru
-              </CardTitle>
-              <Badge variant="secondary">5 Terakhir</Badge>
-            </div>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardDescription className="text-xs font-semibold uppercase tracking-wider">Omset Bulan Ini</CardDescription>
+            <TrendingUp className="size-4 text-blue-500" />
           </CardHeader>
           <CardContent>
-            {recentTransactions.length === 0 ? (
-              <p className="py-8 text-center text-sm italic text-muted-foreground">Belum ada transaksi.</p>
+            <div className="text-2xl font-bold text-blue-600">Rp{metrics.omsetMonth.toLocaleString('id-ID')}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardDescription className="text-xs font-semibold uppercase tracking-wider">Omset Tahun Ini</CardDescription>
+            <Target className="size-4 text-indigo-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-indigo-600">Rp{metrics.omsetYear.toLocaleString('id-ID')}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardDescription className="text-xs font-semibold uppercase tracking-wider">Total Profit Bersih</CardDescription>
+            <DollarSign className="size-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">Rp{metrics.totalProfit.toLocaleString('id-ID')}</div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Top Products */}
+      <div className="grid grid-cols-1 gap-6">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base font-semibold">
+              <Package className="size-4 text-orange-500" /> Top 5 Produk Terlaris
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {topProducts.length === 0 ? (
+              <p className="text-center text-sm text-muted-foreground mt-4">Belum ada data penjualan produk.</p>
             ) : (
-              <div className="space-y-2">
-                {recentTransactions.map((t) => (
-                  <div key={t.id} className="flex items-center justify-between rounded-lg border border-border bg-card p-3">
-                    <div>
-                      <p className="text-sm font-semibold">{t.invoice_no}</p>
-                      <p className="text-[11px] text-muted-foreground">{t.customer_name}</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-sm font-semibold">Rp{t.total_amount.toLocaleString('id-ID')}</p>
-                      <div className="flex items-center justify-end gap-1 text-[10px] text-muted-foreground">
-                        <Clock className="size-3" />
-                        {new Date(t.date).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
-                        <span>• {t.payment_method}</span>
-                      </div>
-                    </div>
+              <div className="space-y-3">
+                {topProducts.map((p, i) => (
+                  <div key={i} className="flex items-center justify-between border-b pb-2 last:border-0 last:pb-0">
+                    <span className="text-sm font-medium truncate pr-4">{p.name}</span>
+                    <Badge variant="secondary">{p.qty} Terjual</Badge>
                   </div>
                 ))}
               </div>

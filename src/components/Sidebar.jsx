@@ -10,13 +10,21 @@ import {
   ShieldCheck,
   LogOut,
   X,
-  Wrench
+  Wrench,
+  Tags,
+  PenTool,
+  FileClock,
+  Banknote,
+  Truck,
+  History,
+  FileText
 } from 'lucide-react'
 
 const adminLinks = [
   { to: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { to: '/admin/inventori', label: 'Master Stok', icon: Package },
-  { to: '/admin/logs', label: 'Jurnal Mutasi', icon: ClipboardList }
+  { to: '/admin/inventori', label: 'Master Produk', icon: Package },
+  { to: '/admin/kategori', label: 'Master Kategori', icon: Tags },
+  { to: '/admin/logs', label: 'Stock Logs', icon: FileText }
 ]
 
 const kasirLinks = [

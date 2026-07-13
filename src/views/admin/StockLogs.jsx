@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { mockApi } from '../../services/mockApi'
+import { api } from '../../services/api'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
@@ -17,7 +17,7 @@ export default function StockLogs() {
     setLoading(true)
     try {
       const [logList, prodList] = await Promise.all([
-        mockApi.getStockLogs(), mockApi.getProducts()
+        api.getStockLogs(), api.getProducts()
       ])
       setLogs([...logList].reverse())
       setProducts(prodList)
