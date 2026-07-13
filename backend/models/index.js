@@ -1,6 +1,7 @@
 'use strict';
 
 const fs = require('fs');
+require('mysql2'); // Explicitly require mysql2 for Vercel Serverless static analysis
 const path = require('path');
 const Sequelize = require('sequelize');
 const process = require('process');
@@ -16,20 +17,16 @@ if (config.use_env_variable) {
   sequelize = new Sequelize(config.database, config.username, config.password, config);
 }
 
-fs
-  .readdirSync(__dirname)
-  .filter(file => {
-    return (
-      file.indexOf('.') !== 0 &&
-      file !== basename &&
-      file.slice(-3) === '.js' &&
-      file.indexOf('.test.js') === -1
-    );
-  })
-  .forEach(file => {
-    const model = require(path.join(__dirname, file))(sequelize, Sequelize.DataTypes);
-    db[model.name] = model;
-  });
+// Static requires for Vercel Serverless (bundler compatibility)
+db.Role = require('./role')(sequelize, Sequelize.DataTypes);
+db.User = require('./user')(sequelize, Sequelize.DataTypes);
+db.Category = require('./category')(sequelize, Sequelize.DataTypes);
+db.Product = require('./product')(sequelize, Sequelize.DataTypes);
+db.Transaction = require('./transaction')(sequelize, Sequelize.DataTypes);
+db.TransactionDetail = require('./transactiondetail')(sequelize, Sequelize.DataTypes);
+db.Warranty = require('./warranty')(sequelize, Sequelize.DataTypes);
+db.StockLog = require('./stocklog')(sequelize, Sequelize.DataTypes);
+db.Setting = require('./setting')(sequelize, Sequelize.DataTypes);
 
 Object.keys(db).forEach(modelName => {
   if (db[modelName].associate) {
