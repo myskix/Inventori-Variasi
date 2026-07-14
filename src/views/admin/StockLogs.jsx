@@ -12,6 +12,8 @@ export default function StockLogs() {
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [typeFilter, setTypeFilter] = useState('All')
+  const [startDate, setStartDate] = useState('')
+  const [endDate, setEndDate] = useState('')
 
   const loadData = async () => {
     setLoading(true)
@@ -33,7 +35,17 @@ export default function StockLogs() {
     const prod = getProductDetails(log.product_id)
     const matchSearch = prod.name.toLowerCase().includes(searchTerm.toLowerCase().trim()) || prod.code.toLowerCase().includes(searchTerm.toLowerCase().trim())
     const matchType = typeFilter === 'All' || log.type === typeFilter
-    return matchSearch && matchType
+    
+    let matchDate = true
+    const logDate = new Date(log.date).setHours(0, 0, 0, 0)
+    if (startDate) {
+      matchDate = matchDate && logDate >= new Date(startDate).setHours(0, 0, 0, 0)
+    }
+    if (endDate) {
+      matchDate = matchDate && logDate <= new Date(endDate).setHours(0, 0, 0, 0)
+    }
+
+    return matchSearch && matchType && matchDate
   })
 
   const renderTypeBadge = (type) => {
@@ -58,28 +70,43 @@ export default function StockLogs() {
 
       {/* Filter Controls */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-12">
-        <div className="relative sm:col-span-8">
+        <div className="relative sm:col-span-4">
           <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             type="text"
-            placeholder="Cari berdasarkan SKU atau nama produk..."
+            placeholder="Cari SKU atau produk..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="pl-9"
           />
         </div>
-        <div className="sm:col-span-4">
+        <div className="sm:col-span-3">
           <select
             value={typeFilter}
             onChange={(e) => setTypeFilter(e.target.value)}
             className="flex h-9 w-full rounded-md border border-input bg-background text-foreground px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
           >
-            <option value="All" className="bg-background text-foreground">Semua Jenis Mutasi</option>
-            <option value="In" className="bg-background text-foreground">Mutasi Masuk (In)</option>
-            <option value="Out" className="bg-background text-foreground">Mutasi Keluar (Out)</option>
-            <option value="Sale" className="bg-background text-foreground">Transaksi Penjualan (Sale)</option>
-            <option value="Adjustment" className="bg-background text-foreground">Penyesuaian Opname (Adjustment)</option>
+            <option value="All">Semua Mutasi</option>
+            <option value="In">Masuk (In)</option>
+            <option value="Out">Keluar (Out)</option>
+            <option value="Sale">Penjualan (Sale)</option>
+            <option value="Adjustment">Opname</option>
           </select>
+        </div>
+        <div className="sm:col-span-5 flex items-center gap-2">
+          <Input 
+            type="date" 
+            value={startDate} 
+            onChange={(e) => setStartDate(e.target.value)}
+            className="h-9 w-full text-sm"
+          />
+          <span className="text-muted-foreground text-sm">s/d</span>
+          <Input 
+            type="date" 
+            value={endDate} 
+            onChange={(e) => setEndDate(e.target.value)}
+            className="h-9 w-full text-sm"
+          />
         </div>
       </div>
 

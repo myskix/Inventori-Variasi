@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import {
   Plus, Minus, ShoppingBag, User, Phone, Car, Shield, Banknote, QrCode,
   Printer, X, AlertCircle, CheckCircle, Search, Wrench, Zap
@@ -18,7 +18,7 @@ import {
 function ThermalReceiptModal({ isOpen, onClose, transactionData }) {
   if (!isOpen || !transactionData) return null
 
-  const { transaction, details, warranties } = transactionData
+  const { transaction, details = [], warranties = [] } = transactionData
   const dateStr = new Date(transaction.date).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' })
 
   return (
@@ -26,8 +26,8 @@ function ThermalReceiptModal({ isOpen, onClose, transactionData }) {
       <DialogContent className="max-w-sm">
         <DialogHeader><DialogTitle>Struk Pembayaran</DialogTitle></DialogHeader>
 
-        {/* Receipt Wrapper (thermal paper style) */}
-        <div className="rounded-lg border bg-white p-6 font-mono text-xs text-slate-950 shadow-sm select-none">
+        {/* Receipt Wrapper (thermal paper style) — marked for print */}
+        <div data-receipt-print className="rounded-lg border bg-white p-6 font-mono text-xs text-slate-950 shadow-sm select-none">
           <div className="mb-4 text-center">
             <h3 className="text-sm font-black uppercase tracking-tight">Toko Variasi Motor</h3>
             <p className="text-[10px] text-slate-600">Pekanbaru, Riau</p>
@@ -41,15 +41,15 @@ function ThermalReceiptModal({ isOpen, onClose, transactionData }) {
             <div className="flex justify-between"><span>Tanggal:</span><span>{dateStr}</span></div>
             <div className="flex justify-between"><span>Kasir:</span><span className="capitalize">{transaction.cashier_id === 'usr-001' ? 'Pak Adi' : 'Rian'}</span></div>
             <Separator className="my-2 border-dashed" />
-            <div className="flex justify-between font-bold text-slate-900"><span>Pelanggan:</span><span className="max-w-[150px] truncate">{transaction.customer_details.name}</span></div>
-            <div className="flex justify-between"><span>WhatsApp:</span><span>{transaction.customer_details.phone}</span></div>
-            <div className="flex justify-between"><span>No Plat:</span><span className="font-bold uppercase">{transaction.customer_details.plat_nomor}</span></div>
-            {transaction.customer_details.vehicle !== '-' && (
-              <div className="flex justify-between"><span>Kendaraan:</span><span className="max-w-[150px] truncate">{transaction.customer_details.vehicle}</span></div>
+            <div className="flex justify-between font-bold text-slate-900"><span>Pelanggan:</span><span className="max-w-[150px] truncate">{transaction.customer_name}</span></div>
+            <div className="flex justify-between"><span>WhatsApp:</span><span>{transaction.customer_phone}</span></div>
+            <div className="flex justify-between"><span>No Plat:</span><span className="font-bold uppercase">{transaction.customer_plat}</span></div>
+            {transaction.customer_vehicle && transaction.customer_vehicle !== '-' && (
+              <div className="flex justify-between"><span>Kendaraan:</span><span className="max-w-[150px] truncate">{transaction.customer_vehicle}</span></div>
             )}
-            {transaction.customer_details.notes !== '-' && (
+            {transaction.customer_notes && transaction.customer_notes !== '-' && (
               <div className="flex flex-col mt-1">
-                <span>Catatan:</span><span className="max-w-full text-left italic">{transaction.customer_details.notes}</span>
+                <span>Catatan:</span><span className="max-w-full text-left italic">{transaction.customer_notes}</span>
               </div>
             )}
           </div>
@@ -66,7 +66,7 @@ function ThermalReceiptModal({ isOpen, onClose, transactionData }) {
               <div key={item.id} className="grid grid-cols-12 text-slate-700">
                 <div className="col-span-6 truncate pr-1">{item.name}</div>
                 <div className="col-span-2 text-center">x{item.quantity}</div>
-                <div className="col-span-4 text-right">{item.subtotal.toLocaleString('id-ID')}</div>
+                <div className="col-span-4 text-right">{(item.subtotal ?? 0).toLocaleString('id-ID')}</div>
               </div>
             ))}
           </div>
@@ -76,7 +76,7 @@ function ThermalReceiptModal({ isOpen, onClose, transactionData }) {
           <div className="space-y-1.5 text-xs">
             <div className="flex justify-between text-sm font-extrabold text-slate-950">
               <span>GRAND TOTAL:</span>
-              <span>Rp{transaction.total_amount.toLocaleString('id-ID')}</span>
+              <span>Rp{(transaction.total_amount ?? 0).toLocaleString('id-ID')}</span>
             </div>
             <div className="flex justify-between text-[10px] text-slate-500">
               <span>Metode Bayar:</span><span>{transaction.payment_method}</span>
@@ -104,9 +104,91 @@ function ThermalReceiptModal({ isOpen, onClose, transactionData }) {
           </p>
         </div>
 
-        <DialogFooter className="gap-2 sm:gap-0">
+        <DialogFooter data-receipt-no-print className="gap-2 sm:gap-0">
           <Button variant="outline" onClick={() => window.print()} className="flex-1"><Printer className="size-4" />Print Struk</Button>
           <Button onClick={onClose} className="flex-1">Tutup</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+// --- CONFIRMATION DIALOG ---
+function ConfirmCheckoutDialog({ isOpen, onClose, onConfirm, cart, grandTotal, customerName, paymentMethod, submitting }) {
+  if (!isOpen) return null
+
+  return (
+    <Dialog open={isOpen} onOpenChange={(o) => { if (!o) onClose() }}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <ShoppingBag className="size-5 text-green-600" /> Konfirmasi Checkout
+          </DialogTitle>
+          <DialogDescription>
+            Pastikan data di bawah sudah benar sebelum menyelesaikan transaksi.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-3">
+          <div className="rounded-lg border bg-muted/30 p-3 space-y-2 text-sm">
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Pelanggan:</span>
+              <span className="font-semibold">{customerName}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Item:</span>
+              <span className="font-semibold">{cart.length} item ({cart.reduce((s, i) => s + i.quantity, 0)} qty)</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Pembayaran:</span>
+              <span className="font-semibold">{paymentMethod}</span>
+            </div>
+            <Separator className="my-1" />
+            <div className="flex justify-between text-base">
+              <span className="font-bold">Total Bayar:</span>
+              <span className="font-black text-green-600">Rp{grandTotal.toLocaleString('id-ID')}</span>
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-2.5 text-xs text-amber-600 flex items-start gap-2">
+            <AlertCircle className="mt-0.5 size-3.5 shrink-0" />
+            <span>Transaksi yang sudah diproses tidak dapat diubah. Pastikan semua data sudah benar.</span>
+          </div>
+        </div>
+
+        <DialogFooter className="gap-2 sm:gap-0">
+          <Button variant="outline" onClick={onClose} disabled={submitting} className="flex-1">Batal</Button>
+          <Button onClick={onConfirm} disabled={submitting} className="flex-1 bg-green-600 text-white hover:bg-green-700">
+            {submitting ? 'Memproses...' : <><CheckCircle className="size-4" /> Ya, Proses</>}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+// --- SUCCESS ALERT DIALOG ---
+function SuccessDialog({ isOpen, onClose, invoiceNo }) {
+  if (!isOpen) return null
+
+  return (
+    <Dialog open={isOpen} onOpenChange={(o) => { if (!o) onClose() }}>
+      <DialogContent className="max-w-sm text-center">
+        <div className="flex flex-col items-center gap-3 py-4">
+          <div className="flex size-16 items-center justify-center rounded-full bg-green-100">
+            <CheckCircle className="size-8 text-green-600" />
+          </div>
+          <DialogHeader>
+            <DialogTitle className="text-lg">Transaksi Berhasil!</DialogTitle>
+            <DialogDescription>
+              Invoice <span className="font-mono font-bold">{invoiceNo}</span> telah berhasil dibuat dan stok telah diperbarui.
+            </DialogDescription>
+          </DialogHeader>
+        </div>
+        <DialogFooter>
+          <Button onClick={onClose} className="w-full bg-green-600 text-white hover:bg-green-700">
+            <Printer className="size-4" /> Lihat Struk
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -135,6 +217,9 @@ export default function POSCheckout() {
   const [submitting, setSubmitting] = useState(false)
   const [receiptData, setReceiptData] = useState(null)
   const [isReceiptOpen, setIsReceiptOpen] = useState(false)
+  const [isConfirmOpen, setIsConfirmOpen] = useState(false)
+  const [isSuccessOpen, setIsSuccessOpen] = useState(false)
+  const [successInvoice, setSuccessInvoice] = useState('')
 
   const loadCatalog = async () => {
     try {
@@ -197,16 +282,24 @@ export default function POSCheckout() {
 
   const getGrandTotal = () => cart.reduce((total, item) => total + item.price * item.quantity, 0)
 
-  const handleCheckoutSubmit = async (e) => {
+  // Step 1: Validate and show confirmation dialog
+  const handleCheckoutClick = (e) => {
     e.preventDefault()
     if (!user) { setError('Anda harus login terlebih dahulu!'); return }
     if (cart.length === 0) { setError('Keranjang belanja kosong!'); return }
     if (!customerName.trim() || !customerPhone.trim() || !customerPlate.trim()) {
       setError('Nama Pelanggan, No WhatsApp, dan No Plat wajib diisi!'); return 
     }
-    
+    setError(null)
+    setIsConfirmOpen(true)
+  }
+
+  // Step 2: Process checkout after confirmation
+  const handleCheckoutSubmit = async () => {
     setSubmitting(true)
     setError(null)
+    setIsConfirmOpen(false)
+
     const customerDetails = { 
       name: customerName.trim(), 
       phone: customerPhone.trim(), 
@@ -214,12 +307,12 @@ export default function POSCheckout() {
       vehicle: customerVehicle.trim() || '-',
       notes: customerNotes.trim() || '-'
     }
-    const checkoutItems = cart.map((item) => ({ type: item.type, id: item.id, quantity: item.quantity, price: item.type === 'product' ? item.price : item.basePrice, difficulty: item.difficulty || 'Simple' }))
+    const checkoutItems = cart.map((item) => ({ type: item.type, id: item.id, name: item.name, quantity: item.quantity, price: item.price, difficulty: item.difficulty || 'Simple' }))
     try {
       const res = await api.createTransaction({ customer_id: null, customer_details: customerDetails, items: checkoutItems, payment_method: paymentMethod, cashier_id: user.id, warranty_duration_days: customWarrantyDays ? Number(customWarrantyDays) : undefined })
       setReceiptData(res)
-      setIsReceiptOpen(true)
-      setSuccess(`Transaksi berhasil! Invoice: ${res.transaction.invoice_no}`)
+      setSuccessInvoice(res.transaction.invoice_no)
+      setIsSuccessOpen(true)
       setCart([]); setCustomerName(''); setCustomerPhone(''); setCustomerPlate(''); setCustomerVehicle(''); setCustomerNotes(''); setCustomWarrantyDays('')
       await loadCatalog()
     } catch (err) { setError(err.message) }
@@ -453,13 +546,32 @@ export default function POSCheckout() {
                 </div>
               )}
 
-              <Button onClick={handleCheckoutSubmit} disabled={submitting || cart.length === 0} className="w-full bg-green-600 text-white hover:bg-green-700" size="lg">
+              <Button onClick={handleCheckoutClick} disabled={submitting || cart.length === 0} className="w-full bg-green-600 text-white hover:bg-green-700" size="lg">
                 {submitting ? 'Memproses Checkout...' : <><Banknote className="size-4" /> Selesaikan Transaksi</>}
               </Button>
             </div>
           </CardContent>
         </Card>
       </div>
+
+      {/* Confirmation Dialog */}
+      <ConfirmCheckoutDialog
+        isOpen={isConfirmOpen}
+        onClose={() => setIsConfirmOpen(false)}
+        onConfirm={handleCheckoutSubmit}
+        cart={cart}
+        grandTotal={getGrandTotal()}
+        customerName={customerName}
+        paymentMethod={paymentMethod}
+        submitting={submitting}
+      />
+
+      {/* Success Alert Dialog */}
+      <SuccessDialog
+        isOpen={isSuccessOpen}
+        onClose={() => { setIsSuccessOpen(false); setIsReceiptOpen(true) }}
+        invoiceNo={successInvoice}
+      />
 
       {/* Thermal Receipt */}
       <ThermalReceiptModal isOpen={isReceiptOpen} onClose={() => { setIsReceiptOpen(false); setReceiptData(null); setSuccess(null) }} transactionData={receiptData} />

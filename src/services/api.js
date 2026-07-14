@@ -43,7 +43,7 @@ export const api = {
   getProfile: () => apiClient.get('/auth/profile'),
 
   // --- DASHBOARD ---
-  getDashboardMetrics: () => apiClient.get('/dashboard'),
+  getDashboardMetrics: (params) => apiClient.get('/dashboard', { params }),
 
   // --- CATEGORIES ---
   getCategories: () => apiClient.get('/categories'),

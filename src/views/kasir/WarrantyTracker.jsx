@@ -19,7 +19,7 @@ export default function WarrantyTracker() {
   const loadData = async () => {
     setLoading(true)
     try {
-      const data = await api.checkWarranty({ plat: search, invoice: search, name: search })
+      const data = await api.checkWarranty(search.trim() ? { plat: search.trim(), invoice: search.trim(), name: search.trim() } : {})
       // Urutkan dari yang terbaru
       setWarranties(data.sort((a, b) => new Date(b.issue_date) - new Date(a.issue_date)))
     } catch (err) {
@@ -202,7 +202,7 @@ export default function WarrantyTracker() {
                   <p className="font-semibold">{selectedWarranty.product_name}</p>
                   <div className="mt-2 flex justify-between text-xs">
                     <span>Masa Garansi: <b className="font-mono">{selectedWarranty.duration_days} Hari</b></span>
-                    <span>Tgl Beli: <b>{new Date(selectedWarranty.date_created).toLocaleDateString('id-ID')}</b></span>
+                    <span>Tgl Beli: <b>{new Date(selectedWarranty.issue_date).toLocaleDateString('id-ID')}</b></span>
                   </div>
                 </div>
 

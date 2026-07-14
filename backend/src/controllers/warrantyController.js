@@ -7,20 +7,17 @@ const checkWarranty = async (req, res, next) => {
     
     // Construct search conditions based on provided params
     const conditions = [];
-    if (plat) conditions.push({ customer_plat: plat });
-    if (phone) conditions.push({ customer_phone: phone });
-    if (invoice) conditions.push({ invoice_no: invoice });
+    if (plat) conditions.push({ customer_plat: { [Op.like]: `%${plat}%` } });
+    if (phone) conditions.push({ customer_phone: { [Op.like]: `%${phone}%` } });
+    if (invoice) conditions.push({ invoice_no: { [Op.like]: `%${invoice}%` } });
     if (name) conditions.push({ customer_name: { [Op.like]: `%${name}%` } });
 
-    if (conditions.length === 0) {
-      return res.json([]); // return empty if no search params
-    }
+    const whereClause = conditions.length > 0 ? { [Op.or]: conditions } : {};
 
     const warranties = await Warranty.findAll({
-      where: {
-        [Op.or]: conditions
-      },
-      order: [['issue_date', 'DESC']]
+      where: whereClause,
+      order: [['issue_date', 'DESC']],
+      limit: 100
     });
 
     res.json(warranties);

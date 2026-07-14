@@ -130,3 +130,35 @@
     @apply font-sans;
   }
 }
+
+/* --- Print Styles: Only show the receipt --- */
+@media print {
+  /* Hide everything by default */
+  body * {
+    visibility: hidden;
+  }
+
+  /* Show only the receipt area */
+  [data-receipt-print],
+  [data-receipt-print] * {
+    visibility: visible !important;
+  }
+
+  [data-receipt-print] {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 80mm;
+    margin: 0;
+    padding: 8px;
+    box-shadow: none !important;
+    border: none !important;
+  }
+
+  /* Hide dialog backdrop, close buttons, footer buttons */
+  [data-slot="dialog-overlay"],
+  [data-slot="dialog-close"],
+  [data-receipt-no-print] {
+    display: none !important;
+  }
+}
