@@ -19,9 +19,9 @@ const create = async (req, res, next) => {
   try {
     const {
       customer_details,
-      items, // array of { type, id, name, price, quantity, maxStock }
+      items, 
       payment_method,
-      warranties // array of { product_id, product_name, duration_days }
+      warranty_duration_days
     } = req.body;
 
     if (!items || items.length === 0) {
@@ -87,9 +87,12 @@ const create = async (req, res, next) => {
       status: 'Completed'
     }, { transaction: t });
 
-    // 3. Create Transaction Details
+    // 3. Create Transaction Details & Warranties
+    const createdDetails = [];
+    const createdWarranties = [];
+
     for (const item of items) {
-      await TransactionDetail.create({
+      const detail = await TransactionDetail.create({
         transaction_id: transaction.id,
         item_type: item.type,
         item_id: item.type === 'product' ? item.id.toString() : 'manual',
@@ -99,36 +102,47 @@ const create = async (req, res, next) => {
         subtotal: item.price * item.quantity,
         difficulty: item.type === 'service' ? 'Manual' : null
       }, { transaction: t });
-    }
+      createdDetails.push(detail);
 
-    // 4. Create Warranties
-    if (warranties && warranties.length > 0) {
-      for (const w of warranties) {
-        const issueDate = new Date();
-        const expiryDate = new Date();
-        expiryDate.setDate(issueDate.getDate() + Number(w.duration_days));
+      // Auto-generate Warranty for Products
+      if (item.type === 'product') {
+        const product = await Product.findByPk(item.id, { transaction: t });
+        
+        let finalWarrantyDays = 0;
+        if (warranty_duration_days !== undefined && warranty_duration_days !== null && warranty_duration_days !== '') {
+          finalWarrantyDays = Number(warranty_duration_days);
+        } else if (product && product.warranty_months) {
+          finalWarrantyDays = product.warranty_months * 30; // approx 30 days per month
+        }
 
-        await Warranty.create({
-          transaction_id: transaction.id,
-          invoice_no: invoiceNo,
-          product_id: w.product_id,
-          product_name: w.product_name,
-          customer_name: customer_details?.name || 'Umum / Cash',
-          customer_phone: customer_details?.phone || '-',
-          customer_plat: customer_details?.plat_nomor || '-',
-          duration_days: w.duration_days,
-          issue_date: issueDate,
-          expiry_date: expiryDate,
-          status: 'Active'
-        }, { transaction: t });
+        if (finalWarrantyDays > 0) {
+          const issueDate = new Date();
+          const expiryDate = new Date();
+          expiryDate.setDate(issueDate.getDate() + finalWarrantyDays);
+
+          const warranty = await Warranty.create({
+            transaction_id: transaction.id,
+            invoice_no: invoiceNo,
+            product_id: product.id,
+            product_name: product.name,
+            customer_name: customer_details?.name || 'Umum / Cash',
+            customer_phone: customer_details?.phone || '-',
+            customer_plat: customer_details?.plat_nomor || '-',
+            duration_days: finalWarrantyDays,
+            issue_date: issueDate,
+            expiry_date: expiryDate,
+            status: 'Active'
+          }, { transaction: t });
+          createdWarranties.push(warranty);
+        }
       }
     }
 
     await t.commit();
-    res.status(201).json({ message: 'Transaksi berhasil', transaction });
+    res.status(201).json({ message: 'Transaksi berhasil', transaction, details: createdDetails, warranties: createdWarranties });
   } catch (error) {
     await t.rollback();
-    next(error); // This will pass the error to the errorMiddleware
+    next(error); 
   }
 };
 

@@ -147,7 +147,7 @@ export default function POSCheckout() {
 
   const filteredProducts = products.filter((p) => {
     const term = productSearch.toLowerCase()
-    return p.name.toLowerCase().includes(term) || p.code.toLowerCase().includes(term) || p.id.toLowerCase().includes(term)
+    return p.name.toLowerCase().includes(term) || p.code.toLowerCase().includes(term) || String(p.id).toLowerCase().includes(term)
   })
 
   const addToCartProduct = (product) => {

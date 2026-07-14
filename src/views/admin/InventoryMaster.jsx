@@ -179,7 +179,7 @@ export default function InventoryMaster() {
     setProductForm({
       code: p.code, name: p.name, category_id: p.category_id, 
       stok_saat_ini: p.stok_saat_ini, stok_minimum: p.stok_minimum,
-      harga_beli: p.harga_beli, harga_jual: p.harga_jual, 
+      harga_beli: p.harga_modal, harga_jual: p.harga_jual, 
       warranty_months: p.warranty_months, deskripsi: p.deskripsi, is_active: p.is_active
     })
     setIsEditOpen(true)
@@ -254,8 +254,8 @@ export default function InventoryMaster() {
                             <div className="font-mono text-[11px] text-muted-foreground">{p.code}</div>
                           </TableCell>
                           <TableCell className="text-muted-foreground">{getCategoryName(p.category_id)}</TableCell>
-                          <TableCell className="text-right text-muted-foreground">Rp{p.harga_beli.toLocaleString('id-ID')}</TableCell>
-                          <TableCell className="text-right font-medium">Rp{p.harga_jual.toLocaleString('id-ID')}</TableCell>
+                          <TableCell className="text-right text-muted-foreground">Rp{(p.harga_modal || 0).toLocaleString('id-ID')}</TableCell>
+                          <TableCell className="text-right font-medium">Rp{(p.harga_jual || 0).toLocaleString('id-ID')}</TableCell>
                           <TableCell className="text-center">
                             <div className="flex flex-col items-center gap-1">
                               <span className={`font-bold ${isLow && !isDeleted ? 'text-destructive' : ''}`}>{p.stok_saat_ini} pcs</span>
